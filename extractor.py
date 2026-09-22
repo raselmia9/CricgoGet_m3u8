@@ -69,31 +69,39 @@ def main():
 
         try:
             log(f"টার্গেট লিংকে প্রবেশ করা হচ্ছে: {url}", "INFO")
-            # এখানে networkidle পরিবর্তন করে domcontentloaded দেওয়া হয়েছে
             page.goto(url, timeout=60000, wait_until="domcontentloaded") 
             
             log("ক্লাউডফায়ার হিউম্যান চ্যালেঞ্জ অতিক্রম করার জন্য ওয়েট এবং হিউম্যান সিমুলেশন চলছে...", "WARNING")
             
             # রিয়েল ইউজারের মতো পেজে মাউস মুভমেন্ট এবং স্ক্রোল সিমুলেট করা
-            for _ in range(3):
+            for _ in range(5):
                 try:
-                    page.mouse.move(100 + _ * 50, 100 + _ * 30)
+                    page.mouse.move(120 + _ * 40, 150 + _ * 20)
                     page.mouse.down()
                     page.mouse.up()
-                    page.evaluate("window.scrollBy(0, 300);")
+                    page.evaluate("window.scrollBy(0, 400);")
                     time.sleep(3)
                 except:
                     pass
 
-            # অতিরিক্ত সময় অপেক্ষা যাতে ক্লাউডফায়ার কুকিজ পাস করে দেয়
-            time.sleep(10)
+            # ক্লাউডফায়ার চ্যালেঞ্জ পাস হওয়ার জন্য পর্যাপ্ত সময় দেওয়া (১৫ সেকেন্ড)
+            log("ক্লাউডফায়ার ভেরিফিকেশন পাস হওয়ার জন্য অতিরিক্ত সময় অপেক্ষা করা হচ্ছে...", "WARNING")
+            time.sleep(15)
 
-            # যদি নেটওয়ার্কে সরাসরি না ধরে, তবে পেজ ও আইফ্রেমের ভেতর থেকে খোঁজা
-            for _ in range(10):
+            # ভিডিও প্লেয়ার ট্রিগার করার জন্য পেজে একটি ক্লিক করা
+            try:
+                page.click("body", timeout=5000)
+            except:
+                pass
+
+            # স্ট্রিম লোড হওয়ার জন্য লুপ চালিয়ে লিংক খোঁজা
+            log("ভিডিও স্ট্রিম সোর্স এবং M3U8 লিংক সংগ্রহ করা হচ্ছে...", "INFO")
+            for _ in range(15):
                 if m3u8_link:
                     break
-                time.sleep(2)
+                time.sleep(3)
                 
+                # পেজ সোর্স চেক করা
                 content = page.content()
                 if ".m3u8" in content:
                     import re
@@ -103,6 +111,7 @@ def main():
                         log(f"পেজ সোর্স থেকে M3U8 লিংক উদ্ধার করা হয়েছে: {m3u8_link}", "SUCCESS")
                         break
 
+                # আইফ্রেমগুলো চেক করা
                 for frame in page.frames:
                     try:
                         f_content = frame.content()
