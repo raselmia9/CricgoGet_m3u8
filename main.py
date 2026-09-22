@@ -1,18 +1,20 @@
 from playwright.sync_api import sync_playwright
 
+URL = "https://cricgo.cc/player.php?id=willow"
+
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page()
 
-    requests = []
+    page.goto(URL, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(10000)
 
-    page.on("request", lambda req: requests.append(req.url))
+    with open("page_title.txt", "w", encoding="utf-8") as f:
+        f.write(page.title())
 
-    page.goto("https://example.com")
-    page.wait_for_timeout(5000)
+    with open("page_source.html", "w", encoding="utf-8") as f:
+        f.write(page.content())
 
-    with open("output.txt", "w") as f:
-        for url in requests:
-            f.write(url + "\n")
+    page.screenshot(path="page.png", full_page=True)
 
     browser.close()
