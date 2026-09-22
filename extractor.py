@@ -58,14 +58,26 @@ def main():
             Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
         """)
 
-        def intercept_request(request):
+        # আরও শক্তিশালী রিকোয়েস্ট এবং রেসপন্স লিসেনার
+        def handle_request(request):
             nonlocal m3u8_link
-            if ".m3u8" in request.url:
+            if ".m3u8" in request.url or "playlist.m3u8" in request.url or "index.m3u8" in request.url:
                 if not m3u8_link:
                     m3u8_link = request.url
-                    log(f"নেটওয়ার্ক ট্রাফিক থেকে M3U8 লিংক ক্যাপচার করা হয়েছে: {m3u8_link}", "SUCCESS")
+                    log(f"নেটওয়ার্ক রিকোয়েস্ট থেকে M3U8 লিংক ক্যাপচার করা হয়েছে: {m3u8_link}", "SUCCESS")
 
-        page.on("request", intercept_request)
+        def handle_response(response):
+            nonlocal m3u8_link
+            try:
+                if ".m3u8" in response.url:
+                    if not m3u8_link:
+                        m3u8_link = response.url
+                        log(f"নেটওয়ার্ক রেসপন্স থেকে M3U8 লিংক ক্যাপচার করা হয়েছে: {m3u8_link}", "SUCCESS")
+            except:
+                pass
+
+        page.on("request", handle_request)
+        page.on("response", handle_response)
 
         try:
             log(f"টার্গেট লিংকে প্রবেশ করা হচ্ছে: {url}", "INFO")
@@ -73,47 +85,48 @@ def main():
             
             log("ক্লাউডফায়ার হিউম্যান চ্যালেঞ্জ অতিক্রম করার জন্য ওয়েট এবং হিউম্যান সিমুলেশন চলছে...", "WARNING")
             
-            # রিয়েল ইউজারের মতো পেজে মাউস মুভমেন্ট এবং স্ক্রোল সিমুলেট করা
-            for _ in range(5):
+            # রিয়েল ইউজারের মতো মাউস মুভমেন্ট এবং স্ক্রোল সিমুলেট করা
+            for _ in range(4):
                 try:
-                    page.mouse.move(120 + _ * 40, 150 + _ * 20)
+                    page.mouse.move(100 + _ * 50, 100 + _ * 30)
                     page.mouse.down()
                     page.mouse.up()
-                    page.evaluate("window.scrollBy(0, 400);")
+                    page.evaluate("window.scrollBy(0, 300);")
                     time.sleep(3)
                 except:
                     pass
 
-            # ক্লাউডফায়ার চ্যালেঞ্জ পাস হওয়ার জন্য পর্যাপ্ত সময় দেওয়া (১৫ সেকেন্ড)
             log("ক্লাউডফায়ার ভেরিফিকেশন পাস হওয়ার জন্য অতিরিক্ত সময় অপেক্ষা করা হচ্ছে...", "WARNING")
-            time.sleep(15)
+            time.sleep(12)
 
-            # ভিডিও প্লেয়ার ট্রিগার করার জন্য পেজে একটি ক্লিক করা
+            # প্লেয়ার বা ভিডিও এলিমেন্টে ক্লিক করে স্ট্রিম ট্রিগার করা
             try:
-                page.click("body", timeout=5000)
+                page.click("video", timeout=3000)
             except:
-                pass
+                try:
+                    page.click("body", timeout=3000)
+                except:
+                    pass
 
-            # স্ট্রিম লোড হওয়ার জন্য লুপ চালিয়ে লিংক খোঁজা
+            # স্ট্রিম সোর্স পুরোপুরি লোড হওয়ার জন্য আরও কিছু সময় অপেক্ষা
             log("ভিডিও স্ট্রিম সোর্স এবং M3U8 লিংক সংগ্রহ করা হচ্ছে...", "INFO")
             for _ in range(15):
                 if m3u8_link:
                     break
-                time.sleep(3)
+                time.sleep(2)
                 
-                # পেজ সোর্স চেক করা
-                content = page.content()
-                if ".m3u8" in content:
-                    import re
-                    matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', content)
-                    if matches:
-                        m3u8_link = matches[0]
-                        log(f"পেজ সোর্স থেকে M3U8 লিংক উদ্ধার করা হয়েছে: {m3u8_link}", "SUCCESS")
-                        break
+                # যদি নেটওয়ার্কে সরাসরি না ধরে, তবে পেজ ও আইফ্রেমের ভেতর থেকে খোঁজা
+                try:
+                    content = page.content()
+                    if ".m3u8" in content:
+                        import re
+                        matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', content)
+                        if matches:
+                            m3u8_link = matches[0]
+                            log(f"পেজ সোর্স থেকে M3U8 লিংক উদ্ধার করা হয়েছে: {m3u8_link}", "SUCCESS")
+                            break
 
-                # আইফ্রেমগুলো চেক করা
-                for frame in page.frames:
-                    try:
+                    for frame in page.frames:
                         f_content = frame.content()
                         if ".m3u8" in f_content:
                             import re
@@ -122,8 +135,8 @@ def main():
                                 m3u8_link = matches[0]
                                 log(f"আইফ্রেম থেকে M3U8 লিংক উদ্ধার করা হয়েছে: {m3u8_link}", "SUCCESS")
                                 break
-                    except:
-                        pass
+                except:
+                    pass
 
         except Exception as e:
             err_msg = str(e)
