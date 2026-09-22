@@ -1,4 +1,4 @@
-name: Playwright Debug Full
+name: Playwright Full Debug
 
 on:
   workflow_dispatch:
@@ -24,19 +24,21 @@ jobs:
         run: |
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
+          else
+            pip install playwright
           fi
 
-      - name: Install Playwright Browser
+      - name: Install Chromium
         run: |
           python -m playwright install chromium
 
-      - name: Create Log Files
+      - name: Create Debug Files
         run: |
           touch status.txt
           touch output.txt
+          touch title.txt
           echo "========== PLAYWRIGHT DEBUG ==========" > status.txt
-          echo "Workflow Started" >> status.txt
-          echo "Time: $(date)" >> status.txt
+          echo "Start Time: $(date)" >> status.txt
           echo "" >> status.txt
 
       - name: Run Python Script
@@ -51,9 +53,13 @@ jobs:
 
       - name: Show Status Log
         run: |
-          cat status.txt
+          echo "===== STATUS.TXT ====="
+          cat status.txt || true
           echo ""
-          echo "========== OUTPUT.TXT =========="
+          echo "===== TITLE.TXT ====="
+          cat title.txt || true
+          echo ""
+          echo "===== OUTPUT.TXT ====="
           cat output.txt || true
 
       - name: Upload Debug Files
@@ -63,3 +69,9 @@ jobs:
           path: |
             status.txt
             output.txt
+            title.txt
+            page.html
+            cloudflare.png
+
+      - name: Finished
+        run: echo "Workflow Completed Successfully"
