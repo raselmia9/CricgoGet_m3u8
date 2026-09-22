@@ -1,10 +1,6 @@
 import time
 import sys
-from bs4 import BeautifulSoup
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from playwright.sync_api import sync_playwright
 
 STATUS_FILE = "status.txt"
 OUTPUT_FILE = "m3u8_link.txt"
@@ -31,90 +27,98 @@ def main():
     
     m3u8_link = None
 
-    log("Cloudflare এবং Bot Detection বাইপাস করার জন্য Undetected-Chromedriver ব্রাউজার শুরু করা হচ্ছে...", "INFO")
+    log("Playwright ব্রাউজার এবং হিউম্যান প্রটেকশন বাইপাস মোড ইনিশিয়ালাইজ করা হচ্ছে...", "INFO")
     
-    options = uc.ChromeOptions()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-
-    driver = None
-    try:
-        # undetected_chromedriver ব্যবহার করে ব্রাউজার ইনিশিয়ালাইজ করা
-        driver = uc.Chrome(options=options, use_subprocess=True)
-        log("Undetected ব্রাউজার ইনস্ট্যান্স সফলভাবে তৈরি হয়েছে।", "SUCCESS")
+    with sync_playwright() as p:
+        # ক্লাউডফায়ার ডিটেকশন এড়াতে ব্রাউজার আর্গুমেন্টস কনফিগার করা
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--disable-gpu"
+            ]
+        )
         
-        log(f"লিংকে প্রবেশ করা হচ্ছে: {url}", "INFO")
-        driver.get(url)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+            device_scale_factor=1,
+            has_touch=False,
+            is_mobile=False
+        )
         
-        # ক্লাউডফায়ার চ্যালেঞ্জ হ্যান্ডেল করার জন্য পর্যাপ্ত সময় অপেক্ষা
-        log("ক্লাউডফায়ার সিকিউরিটি চেক ও চ্যালেঞ্জ পাস করার জন্য অপেক্ষা করা হচ্ছে...", "WARNING")
-        time.sleep(10)
-        
-        page_source = driver.page_source
-        if "cf-browser-verification" in page_source or "Verifying" in page_source:
-            log("ক্লাউডফায়ার ভেরিফিকেশন এখনও চলমান, আরও কিছুটা সময় অপেক্ষা করা হচ্ছে...", "WARNING")
-            time.sleep(10)
-            log("ক্লাউডফায়ার প্রটেকশন সফলভাবে বাইপাস করা হয়েছে!", "SUCCESS")
-        else:
-            log("ক্লাউডফায়ার প্রটেকশন সফলভাবে অতিক্রম করা হয়েছে।", "SUCCESS")
+        page = context.new_page()
 
-        log("ভিডিও প্লেয়ার, স্ক্রিপ্ট এবং স্ট্রিম সোর্স লোড হওয়ার জন্য অপেক্ষা করা হচ্ছে...", "INFO")
-        time.sleep(8)
+        # বোট সিগনেচার লুকাতে জাভাস্ক্রিপ্ট প্রপার্টি ওভাররাইড করা
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
-        # ১. সরাসরি পেজ সোর্স বা স্ক্রিপ্ট থেকে m3u8 খোঁজা
-        import re
-        log("পেজ সোর্সে m3u8 লিংক খোঁজা হচ্ছে...", "INFO")
-        matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', driver.page_source)
-        if matches:
-            m3u8_link = matches[0]
-            log(f"সফলভাবে M3U8 লিংক পাওয়া গেছে: {m3u8_link}", "SUCCESS")
-        
-        # ২. যদি মেইন পেজে না পাওয়া যায়, তবে জাভাস্ক্রিপ্ট বা ডাইনামিক সোর্স চেক করা
-        if not m3u8_link:
-            log("পেজে সরাসরি লিংক না মেলায় জাভাস্ক্রিপ্ট ভেরিয়েবল বা এক্সিকিউশন চেক করা হচ্ছে...", "WARNING")
-            # পেজের সমস্ত script ট্যাগ থেকে লিংক খোঁজা
-            scripts = driver.find_elements(By.TAG_NAME, "script")
-            for script in scripts:
-                script_content = script.get_attribute("innerHTML")
-                if script_content and ".m3u8" in script_content:
-                    script_matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', script_content)
-                    if script_matches:
-                        m3u8_link = script_matches[0]
-                        log(f"স্ক্রিপ্টের ভেতর থেকে M3U8 লিংক উদ্ধার করা হয়েছে: {m3u8_link}", "SUCCESS")
-                        break
+        # নেটওয়ার্ক রিকোয়েস্ট লিসেনার (m3u8 লিংক ধরার জন্য)
+        def intercept_request(request):
+            nonlocal m3u8_link
+            if ".m3u8" in request.url:
+                if not m3u8_link:
+                    m3u8_link = request.url
+                    log(f"নেটওয়ার্ক ট্রাফিক থেকে M3U8 লিংক ক্যাপচার করা হয়েছে: {m3u8_link}", "SUCCESS")
 
-        # ৩. আইফ্রেম (Iframe) চেক করা যদি তখনও না মিলে
-        if not m3u8_link:
-            log("আইফ্রেমগুলোর ভেতর স্ক্যান করা হচ্ছে...", "INFO")
-            iframes = driver.find_elements(By.TAG_NAME, "iframe")
-            log(f"মোট আইফ্রেম পাওয়া গেছে: {len(iframes)}টি", "INFO")
-            for index, iframe in enumerate(iframes):
-                try:
-                    iframe_src = iframe.get_attribute("src")
-                    log(f"আইফ্রেম [{index}] সোর্স: {iframe_src}", "INFO")
-                    driver.switch_to.frame(iframe)
-                    time.sleep(3)
-                    
-                    iframe_matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', driver.page_source)
-                    if iframe_matches:
-                        m3u8_link = iframe_matches[0]
-                        log(f"আইফ্রেম [{index}] এর ভেতর M3U8 লিংক পাওয়া গেছে: {m3u8_link}", "SUCCESS")
-                        driver.switch_to.default_content()
-                        break
-                    driver.switch_to.default_content()
-                except Exception as ex:
-                    log(f"আইফ্রেম [{index}] স্ক্যান করার সময় ত্রুটি: {str(ex)}", "WARNING")
-                    driver.switch_to.default_content()
+        page.on("request", intercept_request)
 
-    except Exception as e:
-        err_msg = str(e)
-        log(f"ব্রাউজার অটোমেশনে মারাত্মক ত্রুটি ঘটেছে: {err_msg}", "ERROR")
-    finally:
-        if driver:
-            driver.quit()
+        try:
+            log(f"টার্গেট লিংকে প্রবেশ করা হচ্ছে: {url}", "INFO")
+            page.goto(url, timeout=60000)
+            
+            # হিউম্যান ভেরিফিকেশন বা ক্লাউডফায়ার চ্যালেঞ্জ পাস করার জন্য পর্যাপ্ত সময় ও সিমুলেশন
+            log("ক্লাউডফায়ার হিউম্যান প্রটেকশন ও সিকিউরিটি চ্যালেঞ্জ চেক করা হচ্ছে...", "WARNING")
+            
+            # পেজে রিয়েল ইউজারের মতো মাউস মুভমেন্ট বা ক্লিক সিমুলেট করা যাতে ভেরিফিকেশন পাস হয়
+            time.sleep(5)
+            try:
+                page.mouse.move(200, 300)
+                page.mouse.click(200, 300)
+            except:
+                pass
+
+            # চ্যালেঞ্জ সলভ হওয়ার জন্য ১০-১৫ সেকেন্ড অপেক্ষা
+            time.sleep(12)
+
+            # পেজ টাইটেল বা সোর্স চেক করে দেখা যে ক্লাউডফায়ার ব্লক পেজ পার হয়েছে কি না
+            page_content = page.content()
+            if "Cloudflare" in page_content or "Verifying" in page_content or "cf-browser-verification" in page_content:
+                log("ক্লাউডফায়ার হিউম্যান ভেরিফিকেশন চ্যালেঞ্জ এখনো টিকে আছে, অতিরিক্ত সময় অপেক্ষা করা হচ্ছে...", "WARNING")
+                time.sleep(15)
+            else:
+                log("ক্লাউডফায়ার হিউম্যান প্রটেকশন সফলভাবে বাইপাস করা হয়েছে!", "SUCCESS")
+
+            log("ভিডিও প্লেয়ার এবং স্ট্রিম রিকোয়েস্ট লোড হওয়ার জন্য অপেক্ষা করা হচ্ছে...", "INFO")
+            
+            # যদি সরাসরি নেটওয়ার্কে না ধরে, তবে ফ্রেম ও পেজ সোর্স স্ক্যান করা
+            for _ in range(15):
+                if m3u8_link:
+                    break
+                time.sleep(2)
+                
+                # ফ্রেমগুলো চেক করা
+                for frame in page.frames:
+                    try:
+                        frame_content = frame.content()
+                        if ".m3u8" in frame_content:
+                            import re
+                            matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', frame_content)
+                            if matches:
+                                m3u8_link = matches[0]
+                                log(f"আইফ্রেমের ভেতর থেকে M3U8 লিংক উদ্ধার করা হয়েছে: {m3u8_link}", "SUCCESS")
+                                break
+                    except:
+                        pass
+
+        except Exception as e:
+            err_msg = str(e)
+            log(f"অটোমেশনে মারাত্মক ত্রুটি ঘটেছে: {err_msg}", "ERROR")
+        finally:
+            browser.close()
             log("ব্রাউজার সেশন সফলভাবে বন্ধ করা হয়েছে।", "INFO")
 
     if m3u8_link:
@@ -122,7 +126,7 @@ def main():
             f.write(m3u8_link)
         log(f"M3U8 লিংক সফলভাবে {OUTPUT_FILE} ফাইলে সেভ করা হয়েছে।", "SUCCESS")
     else:
-        log("সকল পদ্ধতি চেষ্টার পরেও টার্গেট পেজ থেকে M3U8 লিংক সংগ্রহ করা সম্ভব হয়নি।", "ERROR")
+        log("হিউম্যান প্রটেকশন বাইপাসের পর টার্গেট পেজ থেকে M3U8 লিংক সংগ্রহ করা সম্ভব হয়নি।", "ERROR")
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write("NOT_FOUND")
 
