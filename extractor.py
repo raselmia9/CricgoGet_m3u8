@@ -1,9 +1,7 @@
 import time
 import sys
-import cloudscraper
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -12,14 +10,14 @@ STATUS_FILE = "status.txt"
 OUTPUT_FILE = "m3u8_link.txt"
 
 def log(message, level="INFO"):
-    # লেভেল অনুযায়ী কালার ও ইমোজি চিহ্ন: INFO (🔵), SUCCESS (🟢), WARNING (🟡), ERROR (🔴)
+    # স্ট্যাটাস থেকে তারিখ ও সময় বাদ দিয়ে শুধু ইমোজি ও মেসেজ রাখা হয়েছে
     icons = {
         "INFO": "🔵 [INFO]",
         "SUCCESS": "🟢 [SUCCESS]",
         "WARNING": "🟡 [WARNING]",
         "ERROR": "🔴 [ERROR]"
     }
-    formatted = f"{icons.get(level, '🔹')} {time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n"
+    formatted = f"{icons.get(level, '🔹')} - {message}\n"
     print(formatted.strip())
     with open(STATUS_FILE, "a", encoding="utf-8") as f:
         f.write(formatted)
@@ -33,72 +31,82 @@ def main():
     
     m3u8_link = None
 
-    log("ক্লাউডফায়ার প্রটেকশন বাইপাস করার জন্য Selenium হেডলেস ব্রাউজার শুরু করা হচ্ছে...", "INFO")
-    options = Options()
+    log("Cloudflare এবং Bot Detection বাইপাস করার জন্য Undetected-Chromedriver ব্রাউজার শুরু করা হচ্ছে...", "INFO")
+    
+    options = uc.ChromeOptions()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = None
     try:
-        driver = webdriver.Chrome(options=options)
-        log("ব্রাউজার ইনস্ট্যান্স সফলভাবে তৈরি হয়েছে।", "SUCCESS")
+        # undetected_chromedriver ব্যবহার করে ব্রাউজার ইনিশিয়ালাইজ করা
+        driver = uc.Chrome(options=options, use_subprocess=True)
+        log("Undetected ব্রাউজার ইনস্ট্যান্স সফলভাবে তৈরি হয়েছে।", "SUCCESS")
         
         log(f"লিংকে প্রবেশ করা হচ্ছে: {url}", "INFO")
         driver.get(url)
         
-        # ক্লাউডফায়ার সিকিউরিটি চেক ডিটেকশন
-        time.sleep(5)
-        page_source = driver.page_source
-        if "cf-browser-verification" in page_source or "Verifying" in page_source or "Cloudflare" in page_source:
-            log("ক্লাউডফায়ার সিকিউরিটি ভেরিফিকেশন (Cloudflare Challenge) সনাক্ত হয়েছে! বাইপাস করার চেষ্টা চলছে...", "WARNING")
-            try:
-                WebDriverWait(driver, 20).until(
-                    lambda d: "Verifying" not in d.page_source and "cf-browser-verification" not in d.page_source
-                )
-                log("ক্লাউডফায়ার প্রটেকশন সফলভাবে বাইপাস করা হয়েছে!", "SUCCESS")
-            except Exception as e:
-                log(f"ক্লাউডফায়ার চ্যালেঞ্জের সময়সীমা পার হয়ে গেছে বা ব্লক অব্যাহত আছে: {str(e)}", "ERROR")
-        else:
-            log("কোনো দৃশ্যমান ক্লাউডফায়ার ব্লকিং নেই অথবা দ্রুত বাইপাস হয়ে গেছে।", "SUCCESS")
-
-        log("ভিডিও প্লেয়ার ও স্ট্রিম সোর্স লোড হওয়ার জন্য অপেক্ষা করা হচ্ছে...", "INFO")
-        time.sleep(7)
-
-        # পেজ সোর্স থেকে m3u8 খোঁজা
-        if ".m3u8" in driver.page_source:
-            log("পেজ সোর্সে m3u8 প্যাটার্ন পাওয়া গেছে।", "SUCCESS")
-            import re
-            matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', driver.page_source)
-            if matches:
-                m3u8_link = matches[0]
-                log(f"এক্সট্রাক্টকৃত M3U8 লিংক: {m3u8_link}", "SUCCESS")
+        # ক্লাউডফায়ার চ্যালেঞ্জ হ্যান্ডেল করার জন্য পর্যাপ্ত সময় অপেক্ষা
+        log("ক্লাউডফায়ার সিকিউরিটি চেক ও চ্যালেঞ্জ পাস করার জন্য অপেক্ষা করা হচ্ছে...", "WARNING")
+        time.sleep(10)
         
-        # যদি মেইন পেজে না পাওয়া যায়, তবে আইফ্রেম (Iframe) চেক করা
+        page_source = driver.page_source
+        if "cf-browser-verification" in page_source or "Verifying" in page_source:
+            log("ক্লাউডফায়ার ভেরিফিকেশন এখনও চলমান, আরও কিছুটা সময় অপেক্ষা করা হচ্ছে...", "WARNING")
+            time.sleep(10)
+            log("ক্লাউডফায়ার প্রটেকশন সফলভাবে বাইপাস করা হয়েছে!", "SUCCESS")
+        else:
+            log("ক্লাউডফায়ার প্রটেকশন সফলভাবে অতিক্রম করা হয়েছে।", "SUCCESS")
+
+        log("ভিডিও প্লেয়ার, স্ক্রিপ্ট এবং স্ট্রিম সোর্স লোড হওয়ার জন্য অপেক্ষা করা হচ্ছে...", "INFO")
+        time.sleep(8)
+
+        # ১. সরাসরি পেজ সোর্স বা স্ক্রিপ্ট থেকে m3u8 খোঁজা
+        import re
+        log("পেজ সোর্সে m3u8 লিংক খোঁজা হচ্ছে...", "INFO")
+        matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', driver.page_source)
+        if matches:
+            m3u8_link = matches[0]
+            log(f"সফলভাবে M3U8 লিংক পাওয়া গেছে: {m3u8_link}", "SUCCESS")
+        
+        # ২. যদি মেইন পেজে না পাওয়া যায়, তবে জাভাস্ক্রিপ্ট বা ডাইনামিক সোর্স চেক করা
         if not m3u8_link:
-            log("আইফ্রেমগুলোর ভেতর খোঁজা হচ্ছে...", "INFO")
+            log("পেজে সরাসরি লিংক না মেলায় জাভাস্ক্রিপ্ট ভেরিয়েবল বা এক্সিকিউশন চেক করা হচ্ছে...", "WARNING")
+            # পেজের সমস্ত script ট্যাগ থেকে লিংক খোঁজা
+            scripts = driver.find_elements(By.TAG_NAME, "script")
+            for script in scripts:
+                script_content = script.get_attribute("innerHTML")
+                if script_content and ".m3u8" in script_content:
+                    script_matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', script_content)
+                    if script_matches:
+                        m3u8_link = script_matches[0]
+                        log(f"স্ক্রিপ্টের ভেতর থেকে M3U8 লিংক উদ্ধার করা হয়েছে: {m3u8_link}", "SUCCESS")
+                        break
+
+        # ৩. আইফ্রেম (Iframe) চেক করা যদি তখনও না মিলে
+        if not m3u8_link:
+            log("আইফ্রেমগুলোর ভেতর স্ক্যান করা হচ্ছে...", "INFO")
             iframes = driver.find_elements(By.TAG_NAME, "iframe")
             log(f"মোট আইফ্রেম পাওয়া গেছে: {len(iframes)}টি", "INFO")
             for index, iframe in enumerate(iframes):
                 try:
                     iframe_src = iframe.get_attribute("src")
-                    log(f"আইফ্রেম [{index}] চেক করা হচ্ছে: {iframe_src}", "INFO")
+                    log(f"আইফ্রেম [{index}] সোর্স: {iframe_src}", "INFO")
                     driver.switch_to.frame(iframe)
                     time.sleep(3)
-                    if ".m3u8" in driver.page_source:
-                        import re
-                        matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', driver.page_source)
-                        if matches:
-                            m3u8_link = matches[0]
-                            log(f"আইফ্রেম [{index}] এর ভেতর M3U8 লিংক পাওয়া গেছে: {m3u8_link}", "SUCCESS")
-                            driver.switch_to.default_content()
-                            break
+                    
+                    iframe_matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', driver.page_source)
+                    if iframe_matches:
+                        m3u8_link = iframe_matches[0]
+                        log(f"আইফ্রেম [{index}] এর ভেতর M3U8 লিংক পাওয়া গেছে: {m3u8_link}", "SUCCESS")
+                        driver.switch_to.default_content()
+                        break
                     driver.switch_to.default_content()
                 except Exception as ex:
-                    log(f"আইফ্রেম [{index}] চেক করার সময় ত্রুটি: {str(ex)}", "WARNING")
+                    log(f"আইফ্রেম [{index}] স্ক্যান করার সময় ত্রুটি: {str(ex)}", "WARNING")
                     driver.switch_to.default_content()
 
     except Exception as e:
@@ -114,7 +122,7 @@ def main():
             f.write(m3u8_link)
         log(f"M3U8 লিংক সফলভাবে {OUTPUT_FILE} ফাইলে সেভ করা হয়েছে।", "SUCCESS")
     else:
-        log("টার্গেট পেজ থেকে M3U8 লিংক সংগ্রহ করা সম্ভব হয়নি।", "ERROR")
+        log("সকল পদ্ধতি চেষ্টার পরেও টার্গেট পেজ থেকে M3U8 লিংক সংগ্রহ করা সম্ভব হয়নি।", "ERROR")
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write("NOT_FOUND")
 
