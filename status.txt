@@ -2,9 +2,6 @@
 🔵 [INFO] - টার্গেট ইউআরএল সেটআপ সফল হয়েছে: https://cricgo.cc/player.php?id=willow
 🔵 [INFO] - Playwright ব্রাউজার অ্যাডভান্সড হিউম্যান বাইপাস মোডে ইনিশিয়ালাইজ করা হচ্ছে...
 🔵 [INFO] - টার্গেট লিংকে প্রবেশ করা হচ্ছে: https://cricgo.cc/player.php?id=willow
-🔴 [ERROR] - অটোমেশনে ত্রুটি ঘটেছে: Page.goto: Timeout 60000ms exceeded.
-Call log:
-  - navigating to "https://cricgo.cc/player.php?id=willow", waiting until "networkidle"
-
+🟡 [WARNING] - ক্লাউডফায়ার হিউম্যান চ্যালেঞ্জ অতিক্রম করার জন্য ওয়েট এবং হিউম্যান সিমুলেশন চলছে...
 🔵 [INFO] - ব্রাউজার সেশন সফলভাবে বন্ধ করা হয়েছে।
 🔴 [ERROR] - টার্গেট পেজ থেকে M3U8 লিংক সংগ্রহ করা সম্ভব হয়নি।
