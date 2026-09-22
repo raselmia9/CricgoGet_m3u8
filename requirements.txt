@@ -1,5 +1,9 @@
-cloudscraper
+playwright
+playwright-stealth
 beautifulsoup4
-selenium
-webdriver-manager
+cloudscraper
 requests
+lxml
+urllib3
+greenlet
+pyee
