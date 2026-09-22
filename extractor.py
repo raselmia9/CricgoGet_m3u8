@@ -29,7 +29,6 @@ def main():
     log("Playwright ব্রাউজার অ্যাডভান্সড হিউম্যান বাইপাস মোডে ইনিশিয়ালাইজ করা হচ্ছে...", "INFO")
     
     with sync_playwright() as p:
-        # ক্লাউডফায়ার বাইপাস করার জন্য রিয়েল ব্রাউজার আর্গুমেন্টস
         browser = p.chromium.launch(
             headless=True,
             args=[
@@ -59,7 +58,6 @@ def main():
             Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
         """)
 
-        # নেটওয়ার্ক রিকোয়েস্ট লিসেনার (.m3u8 লিংক ধরার জন্য)
         def intercept_request(request):
             nonlocal m3u8_link
             if ".m3u8" in request.url:
@@ -71,7 +69,8 @@ def main():
 
         try:
             log(f"টার্গেট লিংকে প্রবেশ করা হচ্ছে: {url}", "INFO")
-            page.goto(url, timeout=60000, wait_until="networkidle")
+            # এখানে networkidle পরিবর্তন করে domcontentloaded দেওয়া হয়েছে
+            page.goto(url, timeout=60000, wait_until="domcontentloaded") 
             
             log("ক্লাউডফায়ার হিউম্যান চ্যালেঞ্জ অতিক্রম করার জন্য ওয়েট এবং হিউম্যান সিমুলেশন চলছে...", "WARNING")
             
@@ -95,7 +94,6 @@ def main():
                     break
                 time.sleep(2)
                 
-                # ফ্রেম বা মেইন পেজ সোর্স চেক করা
                 content = page.content()
                 if ".m3u8" in content:
                     import re
