@@ -1,4 +1,4 @@
-name: Playwright Debug
+name: Playwright Debug Full
 
 on:
   workflow_dispatch:
@@ -16,28 +16,47 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python Packages
+      - name: Upgrade Pip
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+
+      - name: Install Requirements
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
 
       - name: Install Playwright Browser
         run: |
-          playwright install chromium
+          python -m playwright install chromium
+
+      - name: Create Log Files
+        run: |
+          touch status.txt
+          touch output.txt
+          echo "========== PLAYWRIGHT DEBUG ==========" > status.txt
+          echo "Workflow Started" >> status.txt
+          echo "Time: $(date)" >> status.txt
+          echo "" >> status.txt
 
       - name: Run Python Script
         run: |
-          python main.py
+          python main.py >> status.txt 2>&1 || true
 
-      - name: Show Generated Files
+      - name: Repository File List
         run: |
-          ls -lah
-          echo "----- STATUS.TXT -----"
-          cat status.txt || true
-          echo "----- OUTPUT.TXT -----"
+          echo "" >> status.txt
+          echo "========== REPOSITORY FILES ==========" >> status.txt
+          ls -lah >> status.txt
+
+      - name: Show Status Log
+        run: |
+          cat status.txt
+          echo ""
+          echo "========== OUTPUT.TXT =========="
           cat output.txt || true
 
-      - name: Upload Logs
+      - name: Upload Debug Files
         uses: actions/upload-artifact@v4
         with:
           name: Debug-Logs
